@@ -1,0 +1,16 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+tests
+scripts
+docs
+evidence
+reports
+nginx
+.env*
+Jenkinsfile
+README.md
+*.pdf
+*.zip

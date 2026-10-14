@@ -1,0 +1,60 @@
+services:
+  db:
+    image: redis:8-alpine
+    container_name: db-service
+    command: ["redis-server", "--port", "${REDIS_PORT:?}", "--appendonly", "yes", "--appendfsync", "always"]
+    environment:
+      REDIS_PORT: ${REDIS_PORT:?}
+    volumes:
+      - redis-data:/data
+    networks:
+      app-network:
+        aliases: [db-service]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p $$REDIS_PORT ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: .
+    image: counter-app:1.0
+    environment:
+      REDIS_HOST: db-service
+      REDIS_PORT: ${REDIS_PORT:?}
+      APP_PORT: ${APP_PORT:?}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "${APP_PORT:?}"
+    networks: [app-network]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  lb:
+    image: nginx:1.28-alpine
+    ports:
+      - "${HOST_PORT:?}:8080"
+    environment:
+      APP_PORT: ${APP_PORT:?}
+      NGINX_ENVSUBST_FILTER: APP_PORT
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    networks: [app-network]
+    restart: unless-stopped
+
+networks:
+  app-network:
+    name: app-network
+    driver: bridge
+volumes:
+  redis-data:
+    name: redis-data
